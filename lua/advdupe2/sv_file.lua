@@ -40,12 +40,14 @@ function AdvDupe2.SendToClient(ply, data, autosave)
 	ply.AdvDupe2.Downloading = true
 	AdvDupe2.InitProgressBar(ply,"Saving:")
 
-	net.Start("AdvDupe2_ReceiveFile")
-	net.WriteUInt(autosave, 8)
-	net.WriteStream(data, function()
+	local playload = {
+		autosave = autosave,
+		dupe = data,
+	}
+
+	express.Send("AdvDupe2_ReceiveFile", playload, ply, function(ply)
 		ply.AdvDupe2.Downloading = false
 	end)
-	net.Send(ply)
 end
 
 function AdvDupe2.LoadDupe(ply,success,dupe,info,moreinfo)
@@ -110,29 +112,17 @@ function AdvDupe2.LoadDupe(ply,success,dupe,info,moreinfo)
 	AdvDupe2.ResetOffsets(ply, true)
 end
 
-local function AdvDupe2_ReceiveFile(len, ply)
+express.Receive("AdvDupe2_ReceiveFile", function(ply, data)
 	if not IsValid(ply) then return end
 	if not ply.AdvDupe2 then ply.AdvDupe2 = {} end
 
-	ply.AdvDupe2.Name = string.match(net.ReadString(), "([%w_ ]+)") or "Advanced Duplication"
+	ply.AdvDupe2.Name = string.match(data.name, "([%w_ ]+)") or "Advanced Duplication"
 
-	local stream = net.ReadStream(ply, function(data)
-		if data then
-			AdvDupe2.LoadDupe(ply, AdvDupe2.Decode(data))
-		else
-			AdvDupe2.Notify(ply, "Duplicator Upload Failed!", NOTIFY_ERROR, 5)
-		end
-		ply.AdvDupe2.Uploading = false
-	end)
+	local dupe = data.dupe
 
-	if ply.AdvDupe2.Uploading then
-		if stream then
-			stream:Remove()
-		end
-		AdvDupe2.Notify(ply, "Duplicator is Busy!", NOTIFY_ERROR, 5)
-	elseif stream then
-		ply.AdvDupe2.Uploading = true
-		AdvDupe2.InitProgressBar(ply, "Opening: ")
+	if dupe then
+		AdvDupe2.LoadDupe(ply, AdvDupe2.Decode(dupe))
+	else
+		AdvDupe2.Notify(ply, "Duplicator Upload Failed!", NOTIFY_ERROR, 5)
 	end
-end
-net.Receive("AdvDupe2_ReceiveFile", AdvDupe2_ReceiveFile)
+end)

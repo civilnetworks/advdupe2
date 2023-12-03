@@ -1,73 +1,72 @@
-local function AdvDupe2_ReceiveFile(len, ply)
-	local AutoSave = net.ReadUInt(8) == 1
+express.Receive("AdvDupe2_ReceiveFile", function(data)
+	local autosave = data.autosave == 1
+	local dupe = data.dupe
 
-	net.ReadStream(nil, function(data)
-		AdvDupe2.RemoveProgressBar()
-		if(!data)then
-			AdvDupe2.Notify("File was not saved!",NOTIFY_ERROR,5)
-			return
-		end
-		local path
-		if AutoSave then
-			if(LocalPlayer():GetInfo("advdupe2_auto_save_overwrite")~="0")then
-				path = AdvDupe2.GetFilename(AdvDupe2.AutoSavePath, true)
-			else
-				path = AdvDupe2.GetFilename(AdvDupe2.AutoSavePath)
-			end
+	AdvDupe2.RemoveProgressBar()
+
+	if(!dupe)then
+		AdvDupe2.Notify("File was not saved!",NOTIFY_ERROR,5)
+		return
+	end
+	local path
+	if AutoSave then
+		if(LocalPlayer():GetInfo("advdupe2_auto_save_overwrite")~="0")then
+			path = AdvDupe2.GetFilename(AdvDupe2.AutoSavePath, true)
 		else
-			path = AdvDupe2.GetFilename(AdvDupe2.SavePath)
+			path = AdvDupe2.GetFilename(AdvDupe2.AutoSavePath)
 		end
+	else
+		path = AdvDupe2.GetFilename(AdvDupe2.SavePath)
+	end
 
-		local dupefile = file.Open(path, "wb", "DATA")
-		if(!dupefile)then
-			AdvDupe2.Notify("File was not saved!",NOTIFY_ERROR,5)
-			return
-		end
-		dupefile:Write(data)
-		dupefile:Close()
+	local dupefile = file.Open(path, "wb", "DATA")
+	if(!dupefile)then
+		AdvDupe2.Notify("File was not saved!",NOTIFY_ERROR,5)
+		return
+	end
+	dupefile:Write(dupe)
+	dupefile:Close()
+	
+	local errored = false
+	if(LocalPlayer():GetInfo("advdupe2_debug_openfile")=="1")then
+		if(not file.Exists(path, "DATA"))then AdvDupe2.Notify("File does not exist", NOTIFY_ERROR) return end
 		
-		local errored = false
-		if(LocalPlayer():GetInfo("advdupe2_debug_openfile")=="1")then
-			if(not file.Exists(path, "DATA"))then AdvDupe2.Notify("File does not exist", NOTIFY_ERROR) return end
-			
-			local readFile = file.Open(path, "rb", "DATA")
-			if not readFile then AdvDupe2.Notify("File could not be read", NOTIFY_ERROR) return end
-			local readData = readFile:Read(readFile:Size())
-			readFile:Close()
-			local success,dupe,info,moreinfo = AdvDupe2.Decode(readData)
-			if(success)then
-				AdvDupe2.Notify("DEBUG CHECK: File successfully opens. No EOF errors.")
-			else
-				AdvDupe2.Notify("DEBUG CHECK: " .. dupe, NOTIFY_ERROR)
-				errored = true
-			end
+		local readFile = file.Open(path, "rb", "DATA")
+		if not readFile then AdvDupe2.Notify("File could not be read", NOTIFY_ERROR) return end
+		local readData = readFile:Read(readFile:Size())
+		readFile:Close()
+		local success,dupe,info,moreinfo = AdvDupe2.Decode(readData)
+		if(success)then
+			AdvDupe2.Notify("DEBUG CHECK: File successfully opens. No EOF errors.")
+		else
+			AdvDupe2.Notify("DEBUG CHECK: " .. dupe, NOTIFY_ERROR)
+			errored = true
 		end
-		
-		local filename = string.StripExtension(string.GetFileFromFilename( path ))
-		if(AutoSave)then
-			if(IsValid(AdvDupe2.FileBrowser.AutoSaveNode))then
-				local add = true
-				for i=1, #AdvDupe2.FileBrowser.AutoSaveNode.Files do
-					if(filename==AdvDupe2.FileBrowser.AutoSaveNode.Files[i].Label:GetText())then
-						add=false
-						break
-					end
-				end
-				if(add)then
-					AdvDupe2.FileBrowser.AutoSaveNode:AddFile(filename)
-					AdvDupe2.FileBrowser.Browser.pnlCanvas:Sort(AdvDupe2.FileBrowser.AutoSaveNode)
+	end
+	
+	local filename = string.StripExtension(string.GetFileFromFilename( path ))
+	if(AutoSave)then
+		if(IsValid(AdvDupe2.FileBrowser.AutoSaveNode))then
+			local add = true
+			for i=1, #AdvDupe2.FileBrowser.AutoSaveNode.Files do
+				if(filename==AdvDupe2.FileBrowser.AutoSaveNode.Files[i].Label:GetText())then
+					add=false
+					break
 				end
 			end
-		else
-			AdvDupe2.FileBrowser.Browser.pnlCanvas.ActionNode:AddFile(filename)
-			AdvDupe2.FileBrowser.Browser.pnlCanvas:Sort(AdvDupe2.FileBrowser.Browser.pnlCanvas.ActionNode)
+			if(add)then
+				AdvDupe2.FileBrowser.AutoSaveNode:AddFile(filename)
+				AdvDupe2.FileBrowser.Browser.pnlCanvas:Sort(AdvDupe2.FileBrowser.AutoSaveNode)
+			end
 		end
-		if(!errored)then
-			AdvDupe2.Notify("File successfully saved!",NOTIFY_GENERIC, 5)
-		end
-	end)
-end
-net.Receive("AdvDupe2_ReceiveFile", AdvDupe2_ReceiveFile)
+	else
+		AdvDupe2.FileBrowser.Browser.pnlCanvas.ActionNode:AddFile(filename)
+		AdvDupe2.FileBrowser.Browser.pnlCanvas:Sort(AdvDupe2.FileBrowser.Browser.pnlCanvas.ActionNode)
+	end
+	if(!errored)then
+		AdvDupe2.Notify("File successfully saved!",NOTIFY_GENERIC, 5)
+	end
+end)
 
 local uploading = nil
 function AdvDupe2.UploadFile(ReadPath, ReadArea)
@@ -90,15 +89,17 @@ function AdvDupe2.UploadFile(ReadPath, ReadArea)
 	
 	local success, dupe, info, moreinfo = AdvDupe2.Decode(read)
 	if(success)then
-		net.Start("AdvDupe2_ReceiveFile")
-		net.WriteString(name)
-		uploading = net.WriteStream(read, function()
+		local playload = {
+			name = name,
+			dupe = read,
+		}	
+		
+		express.Send("AdvDupe2_ReceiveFile", playload, function()
 			uploading = nil
 			AdvDupe2.File = nil
 			AdvDupe2.RemoveProgressBar()
 		end)
-		net.SendToServer()
-		
+
 		AdvDupe2.LoadGhosts(dupe, info, moreinfo, name)
 	else
 		AdvDupe2.Notify("File could not be decoded. ("..dupe..") Upload Canceled.", NOTIFY_ERROR)
