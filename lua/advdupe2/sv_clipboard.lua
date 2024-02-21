@@ -794,7 +794,7 @@ local function reportclass(ply, class)
 end
 
 local function reportmodel(ply, model)
-	net.Start("AdvDupe2_ReportClass")
+	net.Start("AdvDupe2_ReportModel")
 	net.WriteString(model)
 	net.Send(ply)
 end
@@ -903,6 +903,7 @@ local function IsAllowed(Player, Class, EntityClass)
 end
 
 local function CreateEntityFromTable(EntTable, Player)
+	hook.Run("AdvDupe2_PreCreateEntity", EntTable, Player)
 
 	local EntityClass = duplicator.FindEntityClass(EntTable.Class)
 	if not IsAllowed(Player, EntTable.Class, EntityClass) then
@@ -1002,7 +1003,7 @@ local function CreateEntityFromTable(EntTable, Player)
 				table.insert( CreatedEntities, ent )
 			end )
 
-			status, valid = pcall(EntityClass.Func, Player, unpack(ArgList, 1, #EntityClass.Args))
+			status, valid = xpcall(EntityClass.Func, ErrorNoHaltWithStack, Player, unpack(ArgList, 1, #EntityClass.Args))
 
 			hook.Remove( "OnEntityCreated", "AdvDupe2_GetLastEntitiesCreated" )
 		else
@@ -1058,7 +1059,6 @@ local function CreateEntityFromTable(EntTable, Player)
 			for _, CreatedEntity in pairs(CreatedEntities) do
 				SafeRemoveEntity(CreatedEntity)
 			end
-			ErrorNoHaltWithStack(valid)
 		end
 
 		if (valid == false) then
