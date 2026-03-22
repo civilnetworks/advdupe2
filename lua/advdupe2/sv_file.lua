@@ -121,7 +121,7 @@ express.Receive("AdvDupe2_ReceiveFile", function(ply, data)
 	local dupe = data.dupe
 
 	if dupe then
-		AdvDupe2.LoadDupe(ply, AdvDupe2.Decode(dupe))
+		AdvDupe2.LoadDupe(ply, AdvDupe2.Decode(util.Base64Decode(dupe)))
 	else
 		AdvDupe2.Notify(ply, "Duplicator Upload Failed!", NOTIFY_ERROR, 5)
 	end

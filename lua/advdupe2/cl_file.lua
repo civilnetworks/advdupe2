@@ -91,7 +91,7 @@ function AdvDupe2.UploadFile(ReadPath, ReadArea)
 	if(success)then
 		local playload = {
 			name = name,
-			dupe = read,
+			dupe = util.Base64Encode(read),
 		}	
 		
 		express.Send("AdvDupe2_ReceiveFile", playload, function()
